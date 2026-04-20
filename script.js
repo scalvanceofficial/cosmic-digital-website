@@ -88,7 +88,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = Object.fromEntries(formData.entries());
 
             // Replace with Google Apps Script URL
-            const GOOGLE_SCRIPT_URL = 'REPLACE_WITH_YOUR_GOOGLE_SCRIPT_URL';
+            const GOOGLE_SCRIPT_URL = 'YOUR_GOOGLE_SCRIPT_URL';
 
             try {
                 if (GOOGLE_SCRIPT_URL.includes('YOUR_GOOGLE_SCRIPT') || GOOGLE_SCRIPT_URL === '') {

@@ -1,66 +1,77 @@
 /**
- * GOOGLE APPS SCRIPT - LEAD CAPTURE & NOTIFICATION
+ * UNIVERSAL GOOGLE APPS SCRIPT - LEAD CAPTURE v2.0
  * 
- * 1. Open Google Sheets
- * 2. Extensions > Apps Script
- * 3. Paste this code
- * 4. Replace 'CLIENT_EMAIL' with yours
- * 5. Deploy > New Deployment > Web App (Set "Who has access" to "Anyone")
+ * FEATURES:
+ * - Automatically finds columns by header name (order doesn't matter)
+ * - Automatically adds missing columns (like "Message")
+ * - Sends formatted email notifications
  */
 
-const CLIENT_EMAIL = "client@cosmicdigital.agency"; // Replace with actual client email
+const CLIENT_EMAIL = "client@cosmicdigital.agency"; // REPLACE WITH YOUR EMAIL
 
 function doPost(e) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  const lock = LockService.getScriptLock();
+  
   try {
+    lock.waitLock(10000); // Prevent concurrent write issues
     const data = JSON.parse(e.postData.contents);
-    const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
     
-    // Add Headers if sheet is empty
-    if (sheet.getLastRow() === 0) {
-      sheet.appendRow([
-        "Timestamp", "Name", "Email", "Phone", "Message",
-        "UTM Source", "UTM Medium", "UTM Campaign", "UTM Term", "GCLID"
-      ]);
-    }
+    // 1. Ensure headers exist and are mapped
+    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn() || 1).getValues()[0];
+    const requiredHeaders = ["Timestamp", "Name", "Email", "Phone", "Message", "UTM Source", "UTM Medium", "UTM Campaign", "GCLID"];
     
-    // Append Data
-    const row = [
-      new Date(),
-      data.name,
-      data.email,
-      data.phone,
-      data.message || "none",
-      data.utm_source || "direct",
-      data.utm_medium || "none",
-      data.utm_campaign || "none",
-      data.utm_term || "none",
-      data.gcl_id || data.gclid || "none"
-    ];
+    // Auto-create missing headers
+    requiredHeaders.forEach(header => {
+      if (headers.indexOf(header) === -1) {
+        const lastCol = sheet.getLastColumn();
+        sheet.getRange(1, lastCol + 1).setValue(header);
+        headers.push(header);
+      }
+    });
+
+    // 2. Map data to correct columns
+    const finalHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    const newRow = finalHeaders.map(header => {
+      switch(header) {
+        case "Timestamp": return new Date();
+        case "Name": return data.name || "N/A";
+        case "Email": return data.email || "N/A";
+        case "Phone": return data.phone || "N/A";
+        case "Message": return data.message || "N/A";
+        case "UTM Source": return data.utm_source || "direct";
+        case "UTM Medium": return data.utm_medium || "none";
+        case "UTM Campaign": return data.utm_campaign || "none";
+        case "GCLID": return data.gcl_id || data.gclid || "none";
+        default: return "";
+      }
+    });
+
+    sheet.appendRow(newRow);
     
-    sheet.appendRow(row);
-    
-    // Send Email Notification
+    // 3. Send Email
     sendLeadEmail(data);
-    
+
     return ContentService.createTextOutput(JSON.stringify({ status: "success" }))
       .setMimeType(ContentService.MimeType.JSON);
-      
+
   } catch (error) {
     return ContentService.createTextOutput(JSON.stringify({ status: "error", message: error.toString() }))
       .setMimeType(ContentService.MimeType.JSON);
+  } finally {
+    lock.releaseLock();
   }
 }
 
 function sendLeadEmail(data) {
   const subject = `🚀 NEW LEAD: ${data.name} - Cosmic Digital`;
-  
   const body = `
-    New Lead Received from Cosmic Digital Landing Page
+    New Lead Received from Cosmic Digital
     
     --- Lead Details ---
-    Name: ${data.name}
-    Email: ${data.email}
-    Phone: ${data.phone}
+    Name: ${data.name || 'N/A'}
+    Email: ${data.email || 'N/A'}
+    Phone: ${data.phone || 'N/A'}
     Message: ${data.message || 'No message provided'}
     
     --- Tracking Information ---
